@@ -1,12 +1,19 @@
 const express = require('express');
 const router = express.Router();
+const { protect } = require('../middleware/auth');
+const {
+    getProgress,
+    updateEpisode,
+    bulkUpdateEpisodes,
+    deleteProgress,
+} = require('../controllers/episodeController');
 
-// TODO: Implement in Phase 5
-// router.get('/:seriesId', getEpisodeProgress);
-// router.put('/:seriesId/season/:seasonNum/episode/:epNum', updateEpisode);
+// All episode routes are protected
+router.use(protect);
 
-router.get('/', (req, res) => {
-    res.json({ message: 'Episode routes - Coming in Phase 5' });
-});
+router.get('/:seriesType/:seriesId', getProgress);
+router.put('/:seriesType/:seriesId/bulk', bulkUpdateEpisodes);
+router.put('/:seriesType/:seriesId/season/:seasonNum/episode/:epNum', updateEpisode);
+router.delete('/:seriesType/:seriesId', deleteProgress);
 
 module.exports = router;
