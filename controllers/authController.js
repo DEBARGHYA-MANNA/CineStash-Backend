@@ -29,10 +29,34 @@ const register = async (req, res, next) => {
         }
 
         // --- Create user ---
+        // --- Check referral code if provided ---
+        const { referralCode } = req.body;
+        let referredBy = null;
+
+        if (referralCode) {
+            const referrer = await User.findOne({
+                referralCode: referralCode.toUpperCase(),
+            });
+            if (referrer) {
+                referredBy = referrer._id;
+                referrer.referralCount += 1;
+
+                // Update tier
+                if (referrer.referralCount >= 50) referrer.referralTier = 'diamond';
+                else if (referrer.referralCount >= 25) referrer.referralTier = 'platinum';
+                else if (referrer.referralCount >= 10) referrer.referralTier = 'gold';
+                else if (referrer.referralCount >= 5) referrer.referralTier = 'silver';
+
+                await referrer.save({ validateBeforeSave: false });
+            }
+        }
+
+        // --- Create user ---
         const user = await User.create({
             name,
             email,
             password,
+            referredBy,
         });
 
         // --- Generate JWT ---

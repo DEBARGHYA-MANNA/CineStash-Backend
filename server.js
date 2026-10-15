@@ -1,3 +1,7 @@
+// Force IPv4 - Fix for JioFiber/Indian ISP IPv6 issues
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
@@ -18,6 +22,9 @@ const searchRoutes = require('./routes/searchRoutes');
 const watchlistRoutes = require('./routes/watchlistRoutes');
 const episodeRoutes = require('./routes/episodeRoutes');
 const recommendationRoutes = require('./routes/recommendationRoutes');
+const userRoutes = require('./routes/userRoutes');
+const friendRoutes = require('./routes/friendRoutes');
+const groupVaultRoutes = require('./routes/groupVaultRoutes');
 
 // Initialize Express app
 const app = express();
@@ -61,6 +68,9 @@ app.get('/', (req, res) => {
             watchlist: '/api/watchlist',
             episodes: '/api/episodes',
             recommendations: '/api/recommendations',
+            users: '/api/users',
+            friends: '/api/friends',
+            groups: '/api/groups',
         },
     });
 });
@@ -71,6 +81,9 @@ app.use('/api/search', searchRoutes);
 app.use('/api/watchlist', watchlistRoutes);
 app.use('/api/episodes', episodeRoutes);
 app.use('/api/recommendations', recommendationRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/friends', friendRoutes);
+app.use('/api/groups', groupVaultRoutes);
 
 // 404 Handler - Catch undefined routes
 app.use((req, res) => {

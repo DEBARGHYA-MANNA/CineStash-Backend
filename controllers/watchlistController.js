@@ -196,6 +196,20 @@ const updateWatchlistItem = async (req, res, next) => {
 
         await item.save();
 
+        // ============================================
+        // AUTO-SYNC: If status changed to 'watched',
+        // update all group vaults this user is in
+        // ============================================
+        if (status === 'watched') {
+            const { autoSyncWatchedToGroups } = require('./groupVaultController');
+            autoSyncWatchedToGroups(
+                req.user.id,
+                item.contentId,
+                item.contentType,
+                item.rating
+            );
+        }
+
         return ApiResponse.success(res, 200, 'Watchlist item updated', item);
     } catch (error) {
         next(error);
