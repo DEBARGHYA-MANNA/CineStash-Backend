@@ -1,11 +1,11 @@
 const tmdbService = require('../services/tmdbService');
+const anilistService = require('../services/anilistService');
 const ApiResponse = require('../utils/apiResponse');
 
 // ============================================
-// @desc    Search movies
-// @route   GET /api/search/movies?query=...&page=1
-// @access  Public
+// MOVIES (TMDB)
 // ============================================
+
 const searchMovies = async (req, res, next) => {
     try {
         const { query, page = 1 } = req.query;
@@ -32,10 +32,9 @@ const searchMovies = async (req, res, next) => {
 };
 
 // ============================================
-// @desc    Search TV shows
-// @route   GET /api/search/tv?query=...&page=1
-// @access  Public
+// TV SHOWS (TMDB)
 // ============================================
+
 const searchTV = async (req, res, next) => {
     try {
         const { query, page = 1 } = req.query;
@@ -62,29 +61,61 @@ const searchTV = async (req, res, next) => {
 };
 
 // ============================================
-// @desc    Get details for a movie or TV show
-// @route   GET /api/search/details/:type/:id
-// @access  Public
+// ANIME (ANILIST)
 // ============================================
+
+const searchAnime = async (req, res, next) => {
+    try {
+        const { query, page = 1, format, status, genre, sort } = req.query;
+
+        if (!query || query.trim() === '') {
+            return ApiResponse.error(res, 400, 'Search query is required');
+        }
+
+        const filters = {};
+        if (format) filters.format = format;
+        if (status) filters.status = status;
+        if (genre) filters.genre = genre;
+        if (sort) filters.sort = sort;
+
+        const results = await anilistService.searchAnime(query.trim(), parseInt(page), filters);
+
+        return ApiResponse.paginated(
+            res,
+            `Found anime results for "${query}"`,
+            results.results,
+            results.pagination
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ============================================
+// DETAILS (TMDB + ANILIST)
+// ============================================
+
 const getDetails = async (req, res, next) => {
     try {
         const { type, id } = req.params;
 
-        if (!['movie', 'tv'].includes(type)) {
-            return ApiResponse.error(res, 400, 'Type must be "movie" or "tv"');
+        if (!['movie', 'tv', 'anime'].includes(type)) {
+            return ApiResponse.error(res, 400, 'Type must be "movie", "tv", or "anime"');
         }
 
         let details;
 
         if (type === 'movie') {
             details = await tmdbService.getMovieDetails(id);
-        } else {
+        } else if (type === 'tv') {
             details = await tmdbService.getTVDetails(id);
+        } else if (type === 'anime') {
+            details = await anilistService.getAnimeDetails(id);
         }
 
         return ApiResponse.success(res, 200, `${type} details retrieved`, details);
     } catch (error) {
-        if (error.message.includes('404')) {
+        if (error.message.includes('not found') || error.message.includes('404')) {
             return ApiResponse.error(res, 404, 'Content not found');
         }
         next(error);
@@ -92,13 +123,17 @@ const getDetails = async (req, res, next) => {
 };
 
 // ============================================
-// @desc    Get trending content
-// @route   GET /api/search/trending?timeWindow=week&page=1
-// @access  Public
+// TRENDING (TMDB + ANILIST)
 // ============================================
+
 const getTrending = async (req, res, next) => {
     try {
-        const { timeWindow = 'week', page = 1 } = req.query;
+        const { timeWindow = 'week', page = 1, type } = req.query;
+
+        if (type === 'anime') {
+            const results = await anilistService.getTrendingAnime(parseInt(page));
+            return ApiResponse.paginated(res, 'Trending anime', results.results, results.pagination);
+        }
 
         if (!['day', 'week'].includes(timeWindow)) {
             return ApiResponse.error(res, 400, 'timeWindow must be "day" or "week"');
@@ -121,76 +156,71 @@ const getTrending = async (req, res, next) => {
 };
 
 // ============================================
-// @desc    Get popular content
-// @route   GET /api/search/popular?type=movie&page=1
-// @access  Public
+// POPULAR (TMDB + ANILIST)
 // ============================================
+
 const getPopular = async (req, res, next) => {
     try {
         const { type = 'movie', page = 1 } = req.query;
 
-        let results;
-
         if (type === 'movie') {
-            results = await tmdbService.getPopularMovies(parseInt(page));
-        } else if (type === 'tv') {
-            results = await tmdbService.getPopularTV(parseInt(page));
-        } else {
-            return ApiResponse.error(res, 400, 'Type must be "movie" or "tv"');
-        }
-
-        return ApiResponse.paginated(
-            res,
-            `Popular ${type} content`,
-            results.results,
-            {
+            const results = await tmdbService.getPopularMovies(parseInt(page));
+            return ApiResponse.paginated(res, 'Popular movies', results.results, {
                 currentPage: results.currentPage,
                 totalPages: results.totalPages,
-            }
-        );
+            });
+        } else if (type === 'tv') {
+            const results = await tmdbService.getPopularTV(parseInt(page));
+            return ApiResponse.paginated(res, 'Popular TV shows', results.results, {
+                currentPage: results.currentPage,
+                totalPages: results.totalPages,
+            });
+        } else if (type === 'anime') {
+            const results = await anilistService.getPopularAnime(parseInt(page));
+            return ApiResponse.paginated(res, 'Popular anime', results.results, results.pagination);
+        } else {
+            return ApiResponse.error(res, 400, 'Type must be "movie", "tv", or "anime"');
+        }
     } catch (error) {
         next(error);
     }
 };
 
 // ============================================
-// @desc    Get top rated content
-// @route   GET /api/search/top-rated?type=movie&page=1
-// @access  Public
+// TOP RATED (TMDB + ANILIST)
 // ============================================
+
 const getTopRated = async (req, res, next) => {
     try {
         const { type = 'movie', page = 1 } = req.query;
 
-        let results;
-
         if (type === 'movie') {
-            results = await tmdbService.getTopRatedMovies(parseInt(page));
-        } else if (type === 'tv') {
-            results = await tmdbService.getTopRatedTV(parseInt(page));
-        } else {
-            return ApiResponse.error(res, 400, 'Type must be "movie" or "tv"');
-        }
-
-        return ApiResponse.paginated(
-            res,
-            `Top rated ${type} content`,
-            results.results,
-            {
+            const results = await tmdbService.getTopRatedMovies(parseInt(page));
+            return ApiResponse.paginated(res, 'Top rated movies', results.results, {
                 currentPage: results.currentPage,
                 totalPages: results.totalPages,
-            }
-        );
+            });
+        } else if (type === 'tv') {
+            const results = await tmdbService.getTopRatedTV(parseInt(page));
+            return ApiResponse.paginated(res, 'Top rated TV shows', results.results, {
+                currentPage: results.currentPage,
+                totalPages: results.totalPages,
+            });
+        } else if (type === 'anime') {
+            const results = await anilistService.getTopAnime(parseInt(page));
+            return ApiResponse.paginated(res, 'Top rated anime', results.results, results.pagination);
+        } else {
+            return ApiResponse.error(res, 400, 'Type must be "movie", "tv", or "anime"');
+        }
     } catch (error) {
         next(error);
     }
 };
 
 // ============================================
-// @desc    Get all genres
-// @route   GET /api/search/genres?type=movie
-// @access  Public
+// GENRES (TMDB + ANILIST)
 // ============================================
+
 const getGenres = async (req, res, next) => {
     try {
         const { type = 'movie' } = req.query;
@@ -201,8 +231,10 @@ const getGenres = async (req, res, next) => {
             genres = await tmdbService.getMovieGenres();
         } else if (type === 'tv') {
             genres = await tmdbService.getTVGenres();
+        } else if (type === 'anime') {
+            genres = await anilistService.getAnimeGenres();
         } else {
-            return ApiResponse.error(res, 400, 'Type must be "movie" or "tv"');
+            return ApiResponse.error(res, 400, 'Type must be "movie", "tv", or "anime"');
         }
 
         return ApiResponse.success(res, 200, `${type} genres retrieved`, { genres });
@@ -212,10 +244,9 @@ const getGenres = async (req, res, next) => {
 };
 
 // ============================================
-// @desc    Discover content by genre
-// @route   GET /api/search/discover?type=movie&genreId=28&page=1
-// @access  Public
+// DISCOVER BY GENRE (TMDB)
 // ============================================
+
 const discoverByGenre = async (req, res, next) => {
     try {
         const { type = 'movie', genreId, page = 1 } = req.query;
@@ -231,7 +262,7 @@ const discoverByGenre = async (req, res, next) => {
         } else if (type === 'tv') {
             results = await tmdbService.discoverTVByGenre(genreId, parseInt(page));
         } else {
-            return ApiResponse.error(res, 400, 'Type must be "movie" or "tv"');
+            return ApiResponse.error(res, 400, 'Discover by genre currently supports "movie" and "tv" only');
         }
 
         return ApiResponse.paginated(
@@ -248,9 +279,78 @@ const discoverByGenre = async (req, res, next) => {
     }
 };
 
+// ============================================
+// SEASONAL ANIME
+// ============================================
+
+const getSeasonalAnime = async (req, res, next) => {
+    try {
+        const { page = 1 } = req.query;
+        const results = await anilistService.getSeasonalAnime(parseInt(page));
+
+        return ApiResponse.paginated(
+            res,
+            'Currently airing seasonal anime',
+            results.results,
+            results.pagination
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ============================================
+// UPCOMING ANIME
+// ============================================
+
+const getUpcomingAnime = async (req, res, next) => {
+    try {
+        const { page = 1 } = req.query;
+        const results = await anilistService.getUpcomingAnime(parseInt(page));
+
+        return ApiResponse.paginated(
+            res,
+            'Upcoming anime',
+            results.results,
+            results.pagination
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ============================================
+// ANIME RECOMMENDATIONS
+// ============================================
+
+const getAnimeRecommendations = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        if (!id) {
+            return ApiResponse.error(res, 400, 'Anime ID is required');
+        }
+
+        const recommendations = await anilistService.getAnimeRecommendations(id);
+
+        return ApiResponse.success(
+            res,
+            200,
+            'Anime recommendations retrieved',
+            { recommendations }
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     searchMovies,
     searchTV,
+    searchAnime,
+    getSeasonalAnime,
+    getUpcomingAnime,
+    getAnimeRecommendations,
     getDetails,
     getTrending,
     getPopular,
