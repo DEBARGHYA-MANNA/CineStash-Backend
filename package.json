@@ -8,15 +8,24 @@
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["cinestash", "movies", "series", "anime", "tracker"],
+  "keywords": [
+    "cinestash",
+    "movies",
+    "series",
+    "anime",
+    "tracker"
+  ],
   "author": "DEBARGHYA-MANNA",
   "license": "MIT",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.9.5",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "nodemailer": "^10.1.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"

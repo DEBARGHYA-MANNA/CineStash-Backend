@@ -1,14 +1,21 @@
 const express = require('express');
 const router = express.Router();
+const { protect } = require('../middleware/auth');
+const {
+    register,
+    login,
+    getMe,
+    forgotPassword,
+    resetPassword,
+} = require('../controllers/authController');
 
-// TODO: Implement in Phase 2
-// router.post('/register', register);
-// router.post('/login', login);
-// router.post('/forgot-password', forgotPassword);
-// router.put('/reset-password/:token', resetPassword);
+// Public routes
+router.post('/register', register);
+router.post('/login', login);
+router.post('/forgot-password', forgotPassword);
+router.put('/reset-password/:token', resetPassword);
 
-router.get('/', (req, res) => {
-    res.json({ message: 'Auth routes - Coming in Phase 2' });
-});
+// Protected routes
+router.get('/me', protect, getMe);
 
 module.exports = router;
