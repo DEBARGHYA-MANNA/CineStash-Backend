@@ -1,13 +1,19 @@
 const express = require('express');
 const router = express.Router();
+const { protect } = require('../middleware/auth');
+const {
+  getTrending,
+  getPersonalized,
+  getByGenre,
+  getPopularAll,
+} = require('../controllers/recommendationController');
 
-// TODO: Implement in Phase 5
-// router.get('/trending', getTrending);
-// router.get('/for-you', getPersonalized);
-// router.get('/by-genre/:genre', getByGenre);
+// Public routes
+router.get('/trending', getTrending);
+router.get('/by-genre', getByGenre);
+router.get('/popular-all', getPopularAll);
 
-router.get('/', (req, res) => {
-  res.json({ message: 'Recommendation routes - Coming in Phase 5' });
-});
+// Protected routes (needs user data)
+router.get('/for-you', protect, getPersonalized);
 
 module.exports = router;
