@@ -1,14 +1,23 @@
 const express = require('express');
 const router = express.Router();
+const { protect } = require('../middleware/auth');
+const {
+    getWatchlist,
+    addToWatchlist,
+    updateWatchlistItem,
+    removeFromWatchlist,
+    checkWatchlist,
+    getWatchlistStats,
+} = require('../controllers/watchlistController');
 
-// TODO: Implement in Phase 5
-// router.get('/', getWatchlist);
-// router.post('/', addToWatchlist);
-// router.put('/:id', updateWatchlistItem);
-// router.delete('/:id', removeFromWatchlist);
+// All watchlist routes are protected
+router.use(protect);
 
-router.get('/', (req, res) => {
-    res.json({ message: 'Watchlist routes - Coming in Phase 5' });
-});
+router.get('/', getWatchlist);
+router.get('/stats', getWatchlistStats);
+router.get('/check/:contentType/:contentId', checkWatchlist);
+router.post('/', addToWatchlist);
+router.put('/:id', updateWatchlistItem);
+router.delete('/:id', removeFromWatchlist);
 
 module.exports = router;
