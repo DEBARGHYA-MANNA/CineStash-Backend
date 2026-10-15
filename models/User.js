@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const { nanoid } = require('nanoid');
 
 const userSchema = new mongoose.Schema(
     {
@@ -25,55 +26,94 @@ const userSchema = new mongoose.Schema(
             type: String,
             required: [true, 'Password is required'],
             minlength: [6, 'Password must be at least 6 characters'],
-            select: false, // Never return password in queries by default
+            select: false,
         },
+        // ============================================
+        // UNIQUE USER ID (Searchable, e.g., DEB-7X9K2)
+        // ============================================
+        uniqueId: {
+            type: String,
+            unique: true,
+            uppercase: true,
+        },
+        // ============================================
+        // REFERRAL SYSTEM (MLM)
+        // ============================================
+        referralCode: {
+            type: String,
+            unique: true,
+        },
+        referredBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null,
+        },
+        referralCount: {
+            type: Number,
+            default: 0,
+        },
+        // Future: perks, tiers, rewards
+        referralTier: {
+            type: String,
+            enum: ['bronze', 'silver', 'gold', 'platinum', 'diamond'],
+            default: 'bronze',
+        },
+        // ============================================
+        // PASSWORD RESET
+        // ============================================
         resetPasswordToken: String,
         resetPasswordExpire: Date,
     },
     {
-        timestamps: true, // Adds createdAt and updatedAt automatically
+        timestamps: true,
     }
 );
 
 // ============================================
-// PRE-SAVE HOOK: Hash password before saving
+// PRE-SAVE HOOKS
 // ============================================
 userSchema.pre('save', async function (next) {
-    // Only hash if the password field was actually modified
-    if (!this.isModified('password')) {
-        return next();
+    // Hash password if modified
+    if (this.isModified('password')) {
+        const salt = await bcrypt.genSalt(10);
+        this.password = await bcrypt.hash(this.password, salt);
     }
 
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
+    // Generate unique user ID if new (e.g., DEB-7X9K2)
+    if (this.isNew && !this.uniqueId) {
+        const prefix = this.name
+            .split(' ')[0]
+            .substring(0, 3)
+            .toUpperCase();
+        const suffix = nanoid(5).toUpperCase();
+        this.uniqueId = `${prefix}-${suffix}`;
+    }
+
+    // Generate referral code if new (e.g., CINE-AB3XZ)
+    if (this.isNew && !this.referralCode) {
+        this.referralCode = `CINE-${nanoid(5).toUpperCase()}`;
+    }
+
     next();
 });
 
 // ============================================
-// INSTANCE METHOD: Compare entered password with hashed
+// INSTANCE METHODS
 // ============================================
 userSchema.methods.matchPassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// ============================================
-// INSTANCE METHOD: Generate password reset token
-// ============================================
 userSchema.methods.generateResetPasswordToken = function () {
-    // Generate a random token (32 bytes, hex string)
     const resetToken = crypto.randomBytes(32).toString('hex');
 
-    // Hash the token and store the HASH in the database
-    // (we never store the raw token — security best practice)
     this.resetPasswordToken = crypto
         .createHash('sha256')
         .update(resetToken)
         .digest('hex');
 
-    // Token expires in 15 minutes
     this.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
 
-    // Return the RAW token (this is what gets sent to the user via email)
     return resetToken;
 };
 
