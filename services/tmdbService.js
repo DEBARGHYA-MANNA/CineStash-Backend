@@ -14,9 +14,8 @@ const tmdbClient = axios.create({
         api_key: TMDB_API_KEY,
         language: 'en-US',
     },
-    // Force IPv4 connections (fix for JioFiber IPv6 timeout)
-    httpAgent: new http.Agent({ family: 4 }),
-    httpsAgent: new https.Agent({ family: 4 }),
+    httpAgent: new http.Agent({ family: 4, keepAlive: false }),
+    httpsAgent: new https.Agent({ family: 4, keepAlive: false }),
 });
 
 // Response interceptor for better error logging
@@ -45,41 +44,44 @@ tmdbClient.interceptors.response.use(
  * @param {Object} params - Additional query parameters
  * @returns {Promise<Object>} Parsed JSON response data
  */
-const tmdbRequest = async (endpoint, params = {}) => {
+const tmdbRequest = async (endpoint, params = {}, retries = 2) => {
     if (!TMDB_API_KEY || TMDB_API_KEY === 'your_tmdb_api_key_here') {
         throw new Error('TMDB API key is not configured. Please add TMDB_API_KEY to your .env file.');
     }
 
-    try {
-        const response = await tmdbClient.get(endpoint, { params });
-        return response.data;
-    } catch (error) {
-        if (error.response) {
-            const status = error.response.status;
-            const message = error.response.data?.status_message || 'Unknown TMDB error';
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const response = await tmdbClient.get(endpoint, { params });
+            return response.data;
+        } catch (error) {
+            const isTransient =
+                error.code === 'ECONNRESET' ||
+                error.code === 'ECONNABORTED' ||
+                error.code === 'ETIMEDOUT' ||
+                error.code === 'EAI_AGAIN' ||
+                error.code === 'ENOTFOUND';
 
-            if (status === 401) {
-                throw new Error('Invalid TMDB API key. Please check your TMDB_API_KEY in .env');
+            if (isTransient && attempt < retries) {
+                console.warn(`⚠️  TMDB ${error.code} on ${endpoint} — retry ${attempt + 1}/${retries}`);
+                await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+                continue;
             }
-            if (status === 404) {
-                throw new Error('Content not found on TMDB');
+
+            if (error.response) {
+                const status = error.response.status;
+                const message = error.response.data?.status_message || 'Unknown TMDB error';
+                if (status === 401) throw new Error('Invalid TMDB API key.');
+                if (status === 404) throw new Error('Content not found on TMDB');
+                if (status === 429) throw new Error('TMDB rate limit exceeded.');
+                throw new Error(`TMDB API error (${status}): ${message}`);
             }
-            if (status === 429) {
-                throw new Error('TMDB rate limit exceeded. Please wait a moment and try again.');
+
+            if (error.code === 'ECONNABORTED') {
+                throw new Error('TMDB request timed out. Please try again.');
             }
 
-            throw new Error(`TMDB API error (${status}): ${message}`);
+            throw new Error(error.message || 'Failed to connect to TMDB API');
         }
-
-        if (error.code === 'ENOTFOUND' || error.code === 'EAI_AGAIN') {
-            throw new Error('Cannot reach TMDB servers. Please check your internet connection.');
-        }
-
-        if (error.code === 'ECONNABORTED') {
-            throw new Error('TMDB request timed out. Please try again.');
-        }
-
-        throw new Error(error.message || 'Failed to connect to TMDB API');
     }
 };
 
